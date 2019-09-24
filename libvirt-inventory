@@ -1,0 +1,35 @@
+#!/usr/bin/python
+import argparse
+import ipaddress
+import libvirt
+
+my_interface = ipaddress.IPv4Interface("192.168.100.1/24")
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--list", action="store_true")
+    args = parser.parse_args()
+
+    if args.list:
+        c = libvirt.openReadOnly("qemu:///system")
+        vms = set()
+
+        for domain in c.listAllDomains(libvirt.VIR_CONNECT_LIST_DOMAINS_ACTIVE):
+            for conf in domain.interfaceAddresses(
+                libvirt.VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_ARP
+            ).values():
+                for addr in conf["addrs"]:
+                    interface = ipaddress.IPv4Interface(
+                        addr["addr"] + "/" + str(addr["prefix"])
+                    )
+                    if interface.ip in my_interface.network:
+                        vms.add(interface.ip)
+
+        c.close()
+
+        print(
+            {
+                "all": {"hosts": [str(addr) for addr in vms], "vars": {}},
+                "_meta": {"hostvars": {}},
+            }
+        )
